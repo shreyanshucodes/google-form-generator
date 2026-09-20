@@ -19,6 +19,18 @@ LAST_NAMES = [
     "Kulkarni", "Desai", "Ghosh", "Reddy", "Pillai", "Banerjee", "Dutta", "Yadav",
 ]
 CITIES = ["Delhi", "Mumbai", "Bengaluru", "Pune", "Hyderabad", "Jaipur", "Lucknow", "Kolkata"]
+OPINIONS = [
+    "I usually check the reviews first.",
+    "Discounts definitely get my attention.",
+    "I notice reels more than normal ads.",
+    "Good reviews make me trust a brand more.",
+    "Too many ads just make me skip it.",
+    "I like seeing the product being used.",
+    "Recommendations from friends matter more to me.",
+    "Influencers help me discover products sometimes.",
+    "Clear prices and real reviews would help.",
+    "It works better when the ad feels genuine.",
+]
 NAME_POOL = [f"{first} {last}" for first in FIRST_NAMES for last in LAST_NAMES]
 random.Random(7919).shuffle(NAME_POOL)
 
@@ -46,7 +58,7 @@ def _text_for(field: FormField, index: int, rng: random.Random, profile: dict[st
         return str(rng.randint(1, 5))
     if "yes" in label or "agree" in label or "consent" in label:
         return rng.choice(["Yes", "No"])
-    return f"Synthetic response {index}"
+    return OPINIONS[(index - 1) % len(OPINIONS)]
 
 
 def _choose_age(options: list[str], rng: random.Random) -> str:

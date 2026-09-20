@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import time
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -56,6 +57,7 @@ def submit_rows(url: str, rows: list[dict[str, object]], delay: float) -> None:
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(form_page.text, "html.parser")
+    page_history = hidden_page_history(form_page.text)
     hidden = {
         element.get("name"): element.get("value", "")
         for element in soup.select("input[type=hidden][name]")
@@ -66,7 +68,7 @@ def submit_rows(url: str, rows: list[dict[str, object]], delay: float) -> None:
         payload: list[tuple[str, str]] = [
             ("fvv", hidden.get("fvv", "1")),
             ("draftResponse", "[]"),
-            ("pageHistory", hidden.get("pageHistory", "0")),
+            ("pageHistory", page_history),
             ("fbzx", hidden.get("fbzx", "")),
             ("submissionTimestamp", "-1"),
             ("submit", "Submit"),
@@ -79,6 +81,21 @@ def submit_rows(url: str, rows: list[dict[str, object]], delay: float) -> None:
         print(f"Submitted {index}/{len(rows)}")
         if index != len(rows):
             time.sleep(delay)
+
+
+def hidden_page_history(html: str) -> str:
+    """Return the visited section indexes expected by multi-page Forms."""
+    match = re.search(r"var FB_PUBLIC_LOAD_DATA_ = (.*?);</script>", html, re.S)
+    if match:
+        try:
+            payload = json.loads(match.group(1))
+            entries = payload[1][1]
+            section_count = sum(1 for entry in entries if len(entry) > 3 and entry[3] == 8)
+            if section_count:
+                return ",".join(str(index) for index in range(section_count))
+        except (IndexError, TypeError, json.JSONDecodeError):
+            pass
+    return "0"
 
 
 def main() -> None:

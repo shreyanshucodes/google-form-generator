@@ -20,6 +20,16 @@ python main.py "https://docs.google.com/forms/d/e/FORM_ID/viewform" --count 100 
 
 This also writes a JSON copy beside the CSV and prints the detected fields.
 
+## Quick analysis
+
+After generating the CSV, run:
+
+```text
+python analyze.py output/responses.csv
+```
+
+This prints row count, column count, missing values, and the most common values for each field.
+
 ## Inspect only
 
 ```text

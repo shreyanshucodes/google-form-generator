@@ -5,6 +5,7 @@ import csv
 import json
 import time
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import requests
 
@@ -47,12 +48,26 @@ def print_schema(fields: list[FormField]) -> None:
 
 def submit_rows(url: str, rows: list[dict[str, object]], delay: float) -> None:
     print(f"Submitting {len(rows)} rows to {url}")
+    view_url = urlunsplit((*urlsplit(url)[:2], urlsplit(url).path.replace("/formResponse", "/viewform"), "", ""))
+    session = requests.Session()
+    headers = {"User-Agent": "Mozilla/5.0", "Referer": view_url}
+    form_page = session.get(view_url, headers=headers, timeout=20)
+    form_page.raise_for_status()
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(form_page.text, "html.parser")
+    hidden = {
+        element.get("name"): element.get("value", "")
+        for element in soup.select("input[type=hidden][name]")
+        if element.get("name") in {"fvv", "partialResponse", "pageHistory", "fbzx", "submissionTimestamp"}
+    }
+    submit_url = urlunsplit((*urlsplit(url)[:2], urlsplit(url).path, "", ""))
     for index, row in enumerate(rows, start=1):
-        payload: list[tuple[str, str]] = []
+        payload: list[tuple[str, str]] = list(hidden.items())
         for key, value in row.items():
             values = value if isinstance(value, list) else [value]
             payload.extend((key, str(item)) for item in values)
-        response = requests.post(url, data=payload, timeout=20)
+        response = session.post(submit_url, data=payload, headers=headers, timeout=20)
         response.raise_for_status()
         print(f"Submitted {index}/{len(rows)}")
         if index != len(rows):

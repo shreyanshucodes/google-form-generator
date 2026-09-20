@@ -31,6 +31,16 @@ OPINIONS = [
     "Clear prices and real reviews would help.",
     "It works better when the ad feels genuine.",
 ]
+CSR_SUGGESTIONS = [
+    "Share regular updates with clear photos and results.",
+    "Make the information easier to find on social media.",
+    "Show how local communities benefit from the projects.",
+    "Use simple videos to explain the work being done.",
+    "Publish progress reports in an easy-to-understand way.",
+    "Work with local people and show their feedback too.",
+    "Give more details about the long-term environmental impact.",
+    "Create more awareness through campus and community campaigns.",
+]
 NAME_POOL = [f"{first} {last}" for first in FIRST_NAMES for last in LAST_NAMES]
 random.Random(7919).shuffle(NAME_POOL)
 
@@ -58,6 +68,8 @@ def _text_for(field: FormField, index: int, rng: random.Random, profile: dict[st
         return str(rng.randint(1, 5))
     if "yes" in label or "agree" in label or "consent" in label:
         return rng.choice(["Yes", "No"])
+    if "csr communication" in label or "improvement would you suggest" in label:
+        return CSR_SUGGESTIONS[(index - 1) % len(CSR_SUGGESTIONS)]
     return OPINIONS[(index - 1) % len(OPINIONS)]
 
 
@@ -165,11 +177,66 @@ def _store_answer(field: FormField, profile: dict[str, str], rng: random.Random)
     return None
 
 
+def _csr_answer(field: FormField, profile: dict[str, str], rng: random.Random) -> str | None:
+    """Generate a varied but internally consistent CSR-survey respondent."""
+    label = field.label.lower()
+    if not field.options:
+        return None
+
+    def choose(*weights: float) -> str:
+        return rng.choices(field.options, weights=list(weights), k=1)[0]
+
+    if label == "your age?":
+        answer = choose(0.42, 0.30, 0.14, 0.10, 0.04)
+        profile["csr_age"] = answer
+        return answer
+    if label == "your gender?":
+        return choose(0.48, 0.48, 0.04)
+    if label == "occupation?":
+        age = profile.get("csr_age", "18 - 20")
+        if age.startswith("18"):
+            return choose(0.72, 0.13, 0.04, 0.03, 0.08)
+        if age.startswith("21"):
+            return choose(0.42, 0.28, 0.13, 0.09, 0.08)
+        if age.startswith("24"):
+            return choose(0.12, 0.40, 0.23, 0.17, 0.08)
+        return choose(0.04, 0.35, 0.29, 0.24, 0.08)
+    if "heard of reliance industries" in label:
+        answer = choose(0.82, 0.18)
+        profile["reliance_awareness"] = answer
+        return answer
+    if "jamnagar mango orchard" in label:
+        answer = choose(0.38, 0.62) if profile.get("reliance_awareness") == "Yes" else choose(0.07, 0.93)
+        profile["orchard_awareness"] = answer
+        return answer
+    if "create both social/environmental value" in label:
+        return choose(0.82, 0.04, 0.14)
+    if "overall perception of reliance" in label:
+        if profile.get("reliance_awareness") == "No":
+            return choose(0.10, 0.08, 0.82)
+        return choose(0.60, 0.10, 0.30)
+    if "csr activities" in label:
+        return choose(0.04, 0.09, 0.24, 0.42, 0.21)
+    if "environmental sustainability" in label:
+        return choose(0.02, 0.06, 0.14, 0.43, 0.35)
+    if "tree plantation" in label or "treated industrial" in label:
+        return choose(0.03, 0.08, 0.19, 0.45, 0.25)
+    if "brand image" in label or "increase trust" in label or "differentiate" in label:
+        return choose(0.04, 0.10, 0.27, 0.40, 0.19)
+    if "long-term environmental responsibility" in label:
+        return choose(0.02, 0.06, 0.15, 0.44, 0.33)
+    return None
+
+
 def generate_row(fields: list[FormField], index: int, rng: random.Random) -> dict[str, object]:
     row: dict[str, object] = {}
     profile: dict[str, str] = {}
     for field in fields:
         label = field.label.lower()
+        csr_answer = _csr_answer(field, profile, rng)
+        if csr_answer is not None:
+            row[field.name] = csr_answer
+            continue
         store_answer = _store_answer(field, profile, rng)
         if store_answer is not None:
             row[field.name] = store_answer

@@ -116,7 +116,10 @@ def _schema_fields(html: str) -> list[FormField]:
         kind = {0: "text", 1: "textarea", 2: "radio", 4: "checkbox", 5: "scale"}.get(
             question_type, "text"
         )
-        fields.append(FormField(f"entry.{question_id}", kind, str(label), options))
+        # The outer ID identifies the question; Google's POST field uses the
+        # inner answer ID from the answer configuration.
+        answer_id = answer_config[0][0] if answer_config else question_id
+        fields.append(FormField(f"entry.{answer_id}", kind, str(label), options))
 
     return fields
 

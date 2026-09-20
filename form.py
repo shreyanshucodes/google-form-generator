@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit, urlunsplit
 
@@ -32,9 +34,17 @@ def _label(element) -> str:
 
 
 def inspect_form(url: str, timeout: int = 20) -> tuple[str, list[FormField]]:
-    response = requests.get(url, timeout=timeout)
+    response = requests.get(
+        url,
+        timeout=timeout,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; form-generator/1.0)"},
+    )
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
+    schema_fields = _schema_fields(response.text)
+    if schema_fields:
+        return response_url(response.url), schema_fields
+
     fields: dict[str, FormField] = {}
 
     for element in soup.select("input[name], textarea[name], select[name]"):
@@ -60,6 +70,63 @@ def inspect_form(url: str, timeout: int = 20) -> tuple[str, list[FormField]]:
                 current.options.append(value)
 
     return response_url(url), list(fields.values())
+
+
+def _schema_fields(html: str) -> list[FormField]:
+    """Read modern Google Forms fields from FB_PUBLIC_LOAD_DATA_."""
+    match = re.search(r"var FB_PUBLIC_LOAD_DATA_ = (.*?);</script>", html, re.S)
+    if not match:
+        return []
+
+    try:
+        payload = json.loads(match.group(1))
+        questions = payload[1][1]
+    except (IndexError, TypeError, json.JSONDecodeError):
+        return []
+
+    fields: list[FormField] = []
+    for question in questions:
+        if not isinstance(question, list) or len(question) < 4:
+            continue
+        question_id, label, question_type = question[0], question[1], question[3]
+        if question_type in {6, 8}:  # section headers
+            continue
+
+        answer_config = question[4] if len(question) > 4 else None
+        if question_type == 7 and isinstance(answer_config, list):  # grid
+            for row in answer_config:
+                if not isinstance(row, list) or len(row) < 4:
+                    continue
+                row_id, option_data, row_label = row[0], row[1], row[3]
+                options = _options(option_data)
+                fields.append(
+                    FormField(
+                        name=f"entry.{question_id}.{row_id}",
+                        kind="radio",
+                        label=str(row_label[0]) if row_label else str(label),
+                        options=options,
+                    )
+                )
+            continue
+
+        options = _options(answer_config[0][1] if answer_config else None)
+        kind = {0: "text", 1: "textarea", 2: "radio", 4: "checkbox", 5: "scale"}.get(
+            question_type, "text"
+        )
+        fields.append(FormField(f"entry.{question_id}", kind, str(label), options))
+
+    return fields
+
+
+def _options(option_data) -> list[str]:
+    if not isinstance(option_data, list):
+        return []
+    result: list[str] = []
+    for option in option_data:
+        value = option[0] if isinstance(option, list) and option else option
+        if isinstance(value, str) and value and value not in result:
+            result.append(value)
+    return result
 
 
 def _choice_groups(soup) -> dict[str, dict]:

@@ -40,6 +40,9 @@ def inspect_form(url: str, timeout: int = 20) -> tuple[str, list[FormField]]:
         headers={"User-Agent": "Mozilla/5.0 (compatible; form-generator/1.0)"},
     )
     response.raise_for_status()
+    # Google Forms serves UTF-8 text but may omit a reliable charset header.
+    # Decode the embedded schema explicitly so option values remain exact.
+    response.encoding = "utf-8"
     soup = BeautifulSoup(response.text, "html.parser")
     schema_fields = _schema_fields(response.text)
     if schema_fields:

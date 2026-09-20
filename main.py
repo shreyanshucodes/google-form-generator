@@ -63,7 +63,14 @@ def submit_rows(url: str, rows: list[dict[str, object]], delay: float) -> None:
     }
     submit_url = urlunsplit((*urlsplit(url)[:2], urlsplit(url).path, "", ""))
     for index, row in enumerate(rows, start=1):
-        payload: list[tuple[str, str]] = list(hidden.items())
+        payload: list[tuple[str, str]] = [
+            ("fvv", hidden.get("fvv", "1")),
+            ("draftResponse", "[]"),
+            ("pageHistory", hidden.get("pageHistory", "0")),
+            ("fbzx", hidden.get("fbzx", "")),
+            ("submissionTimestamp", "-1"),
+            ("submit", "Submit"),
+        ]
         for key, value in row.items():
             values = value if isinstance(value, list) else [value]
             payload.extend((key, str(item)) for item in values)
